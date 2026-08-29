@@ -299,4 +299,4 @@ just-webvpn-jumper/
 
 ---
 
-*逆向分析 + 脚本开发：CherryClaw · 2026-08*
+*逆向分析 + 脚本开发：Johnsheng1 · 2026-08*
