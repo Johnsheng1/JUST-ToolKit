@@ -60,7 +60,7 @@ python just_vpn_login.py 测试
 |---|---|---|
 | `BASE_URL` | `https://vpn2.just.edu.cn/` | WebVPN 入口地址 |
 | `CHECK_URL` | `https://client.v.just.edu.cn/https/webvpn764a2e4853ae5e537560ba711c0f46bd/` | 登录后的会话检测地址（指向门户首页） |
-| `CHECK_URL`备选方案 | `https://client.v.just.edu.cn/https/webvpn5e450e4df63d1d975727042c5bc4b19e2145ba81088ec8390b46b776c759a213/speedtest/backend/getIP.php?isp=true&distance=km&enlink-vpn` | 同济大学教育网测速站（可通过IP ASN是否属于China Education and Research Network Center判断） |
+| `CHECK_URL`备选方案 | `https://client.v.just.edu.cn/https/webvpn5e450e4df63d1d975727042c5bc4b19e2145ba81088ec8390b46b776c759a213/speedtest/backend/getIP.php?isp=true&distance=km` | 同济大学教育网测速站（可通过IP ASN是否属于China Education and Research Network Center判断） |
 
 
 环境变量（来自 `.env`）：
