@@ -31,14 +31,14 @@
 - **协议选择**：HTTPS / HTTP 下拉切换。
 - **快捷跳转**：内置 7 个常用系统一键直达。
 - **零外部依赖**：内置完整 AES-128 实现，不引用任何外部 JS 库，无需网络请求，CSP 严格环境下也能运行。
-- **现代框架修复（内置开关）**：解决 WebVPN 误伤 Next.js 等现代框架的普遍性问题。弹窗内自带开关，默认开启（见 [附：Next.js/现代框架误伤修复](#附nextjs现代框架误伤修复)）。
+- **现代框架修复（内置开关）**：解决 WebVPN 误伤 Next.js 等现代框架的普遍性问题。弹窗内自带开关，**默认关闭**；如遇网站显示错误，尝试开/关此开关并刷新（见 [附：Next.js/现代框架误伤修复](#附nextjs现代框架误伤修复)）。
 
 ---
 
 ## 安装
 
 1. 安装浏览器扩展 [Tampermonkey](https://www.tampermonkey.net/)（Chrome / Edge / Firefox 均支持）。
-2. 打开 Tampermonkey 控制面板 → 选择「添加新脚本」（或直接[点击此处安装](https://github.com/Johnsheng1/JUST-ToolKit/raw/refs/heads/main/just-webvpn-jumper/just-webvpn-jumper.user.js)，浏览器会自动弹出 Tampermonkey 安装界面）。
+2. 打开 Tampermonkey 控制面板 → 选择「添加新脚本」（或直接双击 `just-webvpn-jumper.user.js` 文件，浏览器会自动弹出 Tampermonkey 安装界面）。
 3. 粘贴脚本内容并保存（Ctrl+S）。
 4. 打开任意 `client.v.just.edu.cn` 页面，右下角出现蓝色 `⟳` 按钮即安装成功。
 
@@ -54,7 +54,7 @@
 | 输入主机名 → 点击「前往」或按回车 | 生成编码 URL 并跳转 |
 | 切换 HTTPS / HTTP | 部分老系统（如教务管理 8080 端口）需用 HTTP |
 | 点击快捷 chip | 一键跳转到对应系统 |
-| 切换「现代框架修复」开关 | 开启（默认）时修复 Next.js/React 等站点 JS 报错；关闭后需刷新页面生效 |
+| 切换「现代框架修复」开关 | 默认关闭；开启时修复 Next.js/React 等站点 JS 报错，切换后需刷新页面生效 |
 
 **输入示例：**
 
@@ -285,7 +285,8 @@ const WEBVPN_KEY = 'CASB2021EnLink!!';
 ## 附：Next.js/现代框架误伤修复
 
 > 已**整合进主脚本** `just-webvpn-jumper.user.js`，无需单独安装。
-> 弹窗内「现代框架修复」开关控制启停，默认开启；状态存于 `localStorage`（key: `just_wvpn_fix_enabled`），切换后刷新页面生效。
+> 弹窗内「现代框架修复」开关控制启停，**默认关闭**；状态存于 `localStorage`（key: `just_wvpn_fix_enabled`），切换后刷新页面生效。
+> 开关下方提示：**如遇网站显示错误，请尝试开或关此开关**。
 
 ### 问题现象
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         江苏科技大学 WebVPN 快速跳转器
 // @namespace    just.webvpn.jumper
-// @version      1.1.0
+// @version      1.1.1
 // @description  在 client.v.just.edu.cn 下提供悬浮按钮+弹窗，输入主机名自动 AES 加密跳转；内置"现代框架修复"开关，解决 WebVPN 误伤 Next.js/React 等站点的普遍性 JS 报错
 // @author       Github/Johnsheng1
 // @match        https://client.v.just.edu.cn/*
@@ -25,16 +25,16 @@
    *
    * 修复：document-start 阶段把 window.enlink_eval 替换为无害版本，
    * 原样执行不再改写；若原样执行失败（真老混淆系统），降级回退原始逻辑。
-   * 可通过开关全局启停（默认开启）。
+   * 可通过开关全局启停（默认关闭）。
    * ============================================================ */
   const FIX_ENABLED_KEY = 'just_wvpn_fix_enabled';
 
   function getFixEnabled() {
     try {
       const v = localStorage.getItem(FIX_ENABLED_KEY);
-      return v === null ? true : v === '1';
+      return v === null ? false : v === '1';
     } catch (e) {
-      return true;
+      return false;
     }
   }
 
@@ -299,9 +299,9 @@
         </select>
         <div id="just-wvpn-fix">
           <div class="just-wvpn-fix-label">现代框架修复
-            <small>修复 Next.js/React 站点的 JS 报错</small>
+            <small>如遇网站显示错误，请尝试开或关此开关</small>
           </div>
-          <button id="just-wvpn-fix-switch" class="just-wvpn-switch" role="switch" aria-checked="true"></button>
+          <button id="just-wvpn-fix-switch" class="just-wvpn-switch" role="switch" aria-checked="false"></button>
         </div>
         <button id="just-wvpn-go">前往</button>
         <div id="just-wvpn-error"></div>
