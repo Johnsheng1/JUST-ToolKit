@@ -3,7 +3,7 @@
 // @namespace    just.webvpn.jumper
 // @version      1.0.0
 // @description  在 client.v.just.edu.cn 下提供悬浮按钮+弹窗，输入内网主机名即可自动 AES 加密拼装 webvpn URL 并跳转
-// @author       CherryClaw
+// @author       Github/Johnsheng1
 // @match        https://client.v.just.edu.cn/*
 // @grant        none
 // @run-at       document-end
