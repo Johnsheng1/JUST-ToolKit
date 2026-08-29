@@ -258,44 +258,53 @@ def do_login(client):
     cookies_after = client.cookie_dict()
     print(f"      当前 Cookie: {list(cookies_after.keys())}")
 
-    # 判断是否登录成功
+    # 登录成功的关键标志：捕获到 clientInfo cookie（内含用户信息）
+    got_client_info = "clientInfo" in cookies_after
+
+    # 若 POST 后进入 ticket 回调链（早期流程），继续跟随直到门户
     if "ticket=" in final_url2 or "/enlink/" in final_url2:
         print("[3/5] 已获取 CAS ticket，跟随回调 ...")
-        # 再 GET 一次让 opener 跟随 CAS callback → 设置 WebVPN 会话
-        final_url3, body3 = client.get(final_url2, referer=final_url2)
-        print(f"      最终 URL: {final_url3}")
-        # 回调可能再 302 到门户首页，继续跟随直到拿到 HTML 页面
-        for _ in range(5):
-            final_url3, body3 = client.get(final_url3, referer=final_url3)
-            if b"<" in body3[:300] or "vpn2.just.edu.cn" in final_url3:
+        for _ in range(8):
+            final_url3, body3 = client.get(final_url2, referer=final_url2)
+            print(f"      回调: {final_url3[:100]}")
+            final_url2 = final_url3
+            if "clientInfo" in client.cookie_dict():
+                got_client_info = True
+            # 到达门户首页（响应含完整 HTML 且非登录页）
+            html3 = body3.decode("utf-8", errors="replace")
+            if "clientInfo" in client.cookie_dict() and ("江苏科技大学" in html3[:3000] or "sopcb" in final_url2):
                 break
-        print(f"      门户 URL: {final_url3}")
-    else:
-        # 检查是否出现错误信息
+    # 直接跳转到门户（网关直接放行）
+    elif got_client_info and "login" not in final_url2.split("/")[-1]:
+        print("[3/5] 网关直接放行到门户（已登录会话）")
+
+    # 检查是否失败
+    if not got_client_info:
+        print("[!] 登录可能失败")
+        text = resp2.decode("utf-8", errors="replace")
         err_kws = ["密码错误", "用户名或密码", "账号或密码", "账号锁定", "错误", "失败",
                    "验证码", "登录失败", "账号被", "disabled", "locked"]
-        text = resp2.decode("utf-8", errors="replace")
-        hit = [kw for kw in err_kws if kw.lower() in text.lower()]
-        if "error" in final_url2 or "login" not in final_url2 or hit:
-            print("[!] 登录可能失败")
-            # 提取错误信息（表单中 swiSpan1 或 errMsg 等位置）
-            m = re.search(r'form-tab-nav[^>]*>\s*([^<]+?)\s*</span>', text) or \
-                re.search(r'id="errMsg"[^>]*>\s*([^<]+)', text) or \
-                re.search(r'errors?[^>]*>\s*([^<]+)', text)
-            if m and m.group(1).strip():
-                print(f"    服务端提示: {m.group(1).strip()}")
-            else:
-                for kw in err_kws:
-                    i = text.lower().find(kw.lower())
-                    if i >= 0:
-                        print(f"    提示: {text[max(0,i-20):i+100].strip()}")
-                        break
-            return False
+        m = re.search(r'form-tab-nav[^>]*>\s*([^<]+?)\s*</span>', text) or \
+            re.search(r'id="errMsg"[^>]*>\s*([^<]+)', text) or \
+            re.search(r'errors?[^>]*>\s*([^<]+)', text)
+        if m and m.group(1).strip():
+            print(f"    服务端提示: {m.group(1).strip()}")
+        else:
+            hit = [kw for kw in err_kws if kw.lower() in text.lower()]
+            for kw in hit:
+                i = text.lower().find(kw.lower())
+                print(f"    提示: {text[max(0,i-20):i+100].strip()}")
+                break
+        return False
 
-    # 最终确认：尝试访问入口页
+    # 最终确认：用检测地址验证会话（保持同一会话，不重新访问入口触发访客初始化）
     print("[4/5] 验证会话 ...")
-    test_url, _ = client.get(BASE_URL, referer=final_url2)
-    print(f"      访问入口: {test_url}")
+    test_url, test_body = client.get(CHECK_URL, referer=final_url2)
+    test_html = test_body.decode("utf-8", errors="replace")
+    if "cas/login" in test_url and "统一身份认证" in test_html[:500]:
+        print(f"      [!] 检测地址返回登录页（会话未生效）: {test_url[:100]}")
+    else:
+        print(f"      ✓ 检测地址访问成功: {test_url[:100]}")
 
     return True
 
@@ -413,8 +422,8 @@ def main():
     if ok:
         test_internal(client)
 
-    print("\n提示：cookies.txt 可用于 curl：")
-    print(f'  curl -b cookies.txt "{CHECK_URL}"')
+    print("\n提示：cookies.txt 可用于 curl（必须加 -L 跟随重定向）：")
+    print(f'  curl -L -b cookies.txt "{CHECK_URL}"')
     print(f'  或将 cookies.json 中的 Cookie 导入浏览器/请求库使用。')
 
 

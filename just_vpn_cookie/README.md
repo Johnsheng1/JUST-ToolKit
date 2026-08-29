@@ -70,11 +70,30 @@ python just_vpn_login.py 测试
 
 ## 🍪 Cookie 使用示例
 
-### curl
+### curl（必须加 `-L`）
+
+> ⚠️ **重要**：WebVPN 网关对首次访问会返回 302，重定向到同 URL 并追加 `?enlink-vpn` 参数（网关握手）。
+> **curl 必须加 `-L` 自动跟随重定向**，否则会一直停在 302。
 
 ```bash
-curl -b just_vpn_cookies.txt "https://client.v.just.edu.cn/https/webvpn764a2e4853ae5e537560ba711c0f46bd/"
+# 正确用法（-L 跟随重定向）
+curl -L -b just_vpn_cookies.txt "https://client.v.just.edu.cn/https/webvpn764a2e4853ae5e537560ba711c0f46bd/"
+
+# 访问门户首页（等价）
+curl -L -b just_vpn_cookies.txt "https://vpn2.just.edu.cn/"
 ```
+
+> 如果仍然 302，通常是因为 cookie 已过期——重新运行 `python just_vpn_login.py` 刷新即可。
+
+### 浏览器中导入 Cookie（注意事项）
+
+WebVPN 网关的会话机制比较特殊：**它不只校验 cookie 值，还会校验服务端会话状态**。因此：
+
+1. **直接用浏览器开发者工具手动添加 cookie 可能无效**——网关在页面导航时会对「访客」强制刷新 `ENSSESSIONID`/`GUESTSESSIONID`，覆盖你添加的值。
+2. **推荐方式**：使用浏览器扩展（如 EditThisCookie）一次性导入 `just_vpn_cookies.json` 里的全部 cookie（包含 `clientInfo`），然后**直接访问检测地址 URL**，不要先访问 `vpn2.just.edu.cn` 入口（入口会触发新的访客握手）。
+3. Cookie 有**时效性**（`vpn_timestamp` 是登录时间戳），导入后尽快使用。
+
+> 如果浏览器复现仍失败，最稳妥的用法是**保持使用 curl / 脚本**，cookie 在命令行场景下是稳定有效的。
 
 ### Python requests
 
