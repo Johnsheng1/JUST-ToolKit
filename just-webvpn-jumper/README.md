@@ -15,6 +15,7 @@
 - [已知系统对照表](#已知系统对照表)
 - [故障排查](#故障排查)
 - [扩展与自定义](#扩展与自定义)
+- [附：Next.js/现代框架误伤修复](#附nextjs现代框架误伤修复)
 - [法律与合规声明](#法律与合规声明)
 
 ---
@@ -30,6 +31,7 @@
 - **协议选择**：HTTPS / HTTP 下拉切换。
 - **快捷跳转**：内置 7 个常用系统一键直达。
 - **零外部依赖**：内置完整 AES-128 实现，不引用任何外部 JS 库，无需网络请求，CSP 严格环境下也能运行。
+- **现代框架修复（内置开关）**：解决 WebVPN 误伤 Next.js 等现代框架的普遍性问题。弹窗内自带开关，默认开启（见 [附：Next.js/现代框架误伤修复](#附nextjs现代框架误伤修复)）。
 
 ---
 
@@ -52,6 +54,7 @@
 | 输入主机名 → 点击「前往」或按回车 | 生成编码 URL 并跳转 |
 | 切换 HTTPS / HTTP | 部分老系统（如教务管理 8080 端口）需用 HTTP |
 | 点击快捷 chip | 一键跳转到对应系统 |
+| 切换「现代框架修复」开关 | 开启（默认）时修复 Next.js/React 等站点 JS 报错；关闭后需刷新页面生效 |
 
 **输入示例：**
 
@@ -279,6 +282,100 @@ const WEBVPN_KEY = 'CASB2021EnLink!!';
 
 ---
 
+## 附：Next.js/现代框架误伤修复
+
+> 已**整合进主脚本** `just-webvpn-jumper.user.js`，无需单独安装。
+> 弹窗内「现代框架修复」开关控制启停，默认开启；状态存于 `localStorage`（key: `just_wvpn_fix_enabled`），切换后刷新页面生效。
+
+### 问题现象
+
+通过 WebVPN 访问部分现代网站（如 `ipinfo.io/what-is-my-ip`、Next.js/React/Vue SSR 站点）时，页面只显示：
+
+```
+Application error: a client-side exception has occurred while loading client.v.just.edu.cn
+```
+
+控制台报错：
+
+```
+Uncaught TypeError: Cannot read properties of undefined (reading 'validators')
+    at a (eval at n.enlink_eval (bundle.debug.js:1:179658), <anonymous>:2:317)
+    ...
+```
+
+### 根因分析
+
+WebVPN 前端 `bundle.debug.js` 内置了一个**脚本过滤器 `R(t, e)`**，对页面中的每个内联脚本做关键词检测：
+
+```javascript
+// 伪代码：脚本内容只要包含以下任一关键词
+// 就会被包一层 enlink_eval 改写执行
+-1 === t.indexOf("location") &&
+-1 === t.indexOf("postMessage") &&
+-1 === t.indexOf("http/webvpn") &&
+-1 === t.indexOf("https/webvpn")
+? t   // 不含关键词 → 原样返回
+: "enlink_eval((function(){ ... }).toString().slice(12,-2), '', 'html');"
+```
+
+`enlink_eval` 内部用 **Babel 解析脚本源码，把代码中所有 `location` 标识符改写成 `__location`，再 `eval` 执行**。这个逻辑是给**致远 OA（Seeyon）等使用混淆 JS 的老系统**设计的兼容补丁，目的是让老系统里的 `location` 跳转经过 WebVPN 代理。
+
+**但现代框架的 SSR 数据会被误伤**：
+
+- Next.js 把服务端渲染数据放在 `window.__next_f` 的 JSON 数组里（React Server Components payload）
+- 这些 JSON 字符串中天然包含 `"location"`（例如 `og:url` 的 content 含 `https://...`，路由数据含 `location` 字段）
+- WebVPN 的过滤器只看**子串匹配**，不区分这是"代码"还是"数据"
+- 于是把 Next.js 的 RSC 数据当成了"需要改写 location 的混淆代码"，用 Babel 改写后 eval
+- 改写破坏了 RSC 数据结构 → React hydration 失败 → Tailwind 内部读到 undefined → 崩溃 → 错误页
+
+**普遍性**：任何 SSR/现代框架的页面，只要序列化数据里含 `location` / `postMessage` / `webvpn` 等子串，在 WebVPN 下都会触发此 bug。校内老系统（门户、教务）是传统 JSP/多页应用，序列化数据少，所以碰巧不受影响。
+
+### 修复方案
+
+主脚本以 `document-start` 运行，在 WebVPN 的 `bundle.debug.js` 执行**之前**，把 `window.enlink_eval` 替换成"无害版本"：
+
+- **不再做 Babel 改写**，把代码原样交给 `eval` 执行；
+- 如果原样执行失败（说明真的是需要改写的老混淆系统），**自动降级回退**到 WebVPN 原始 `enlink_eval`；
+- **开关关闭时**（`just_wvpn_fix_enabled=0`）不注入修复，恢复 WebVPN 原始行为。
+
+```javascript
+// 核心逻辑：属性代理 + 无害化 + 降级回退（主脚本内置，开关控制启停）
+if (getFixEnabled()) {
+  Object.defineProperty(window, 'enlink_eval', {
+    configurable: true,
+    set: function (v) {
+      if (typeof v !== 'function' || v.__just_patched) { current = v; return; }
+      const original = v;
+      const patched = function (code, mode, sourceType) {
+        try { return eval(code); }                // 原样执行
+        catch (e) { return original(code, mode, sourceType); } // 降级回退
+      };
+      patched.__just_patched = true;
+      current = patched;
+    }
+  });
+}
+```
+
+### 实测结果
+
+| 站点 | 修复关闭 | 修复开启 |
+|---|---|---|
+| `ipinfo.io/what-is-my-ip` | ❌ 错误页 | ✅ 正常渲染，显示真实 IP |
+| 门户 `my.just.edu.cn` | ✅ | ✅ 不受影响 |
+| 百度 | ✅ | ✅ 不受影响 |
+| 教务系统 | ⚠️ 502（系统侧） | ⚠️ 同前 |
+
+开关验证：开启时 `enlink_eval` 被补丁替换（`__just_patched=true`），ipinfo 正常；关闭时无补丁，ipinfo 恢复崩溃。修复仅影响"会被 WebVPN 误改写"的现代框架页面，对普通站点和旧系统零副作用。
+
+### 安全边界
+
+- 本修复**不绕过任何认证**，仅阻止 WebVPN 对正常脚本的破坏性改写；
+- 降级回退保留了 WebVPN 对老混淆系统的原始兼容逻辑；
+- 若学校 WebVPN 升级后改变了 `enlink_eval` 的调用方式，只需调整匹配逻辑。
+
+---
+
 ## 法律与合规声明
 
 - **仅供个人学习、研究与便捷访问使用**。请在校园网使用政策允许的范围内使用本脚本。
@@ -293,9 +390,11 @@ const WEBVPN_KEY = 'CASB2021EnLink!!';
 
 ```
 just-webvpn-jumper/
-├── just-webvpn-jumper.user.js   # 油猴脚本（单文件，即插即用）
-└── README.md                    # 本说明文档
+├── just-webvpn-jumper.user.js       # 主脚本：WebVPN 快速跳转 + 现代框架修复（带开关）
+└── README.md                        # 本说明文档
 ```
+
+> 两个脚本建议同时安装：跳转脚本负责便利，修复脚本负责让校外现代网站能正常打开。
 
 ---
 

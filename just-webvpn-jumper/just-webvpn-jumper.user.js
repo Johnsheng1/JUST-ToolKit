@@ -1,17 +1,78 @@
 // ==UserScript==
 // @name         江苏科技大学 WebVPN 快速跳转器
 // @namespace    just.webvpn.jumper
-// @version      1.0.0
-// @description  在 client.v.just.edu.cn 下提供悬浮按钮+弹窗，输入内网主机名即可自动 AES 加密拼装 webvpn URL 并跳转
+// @version      1.1.0
+// @description  在 client.v.just.edu.cn 下提供悬浮按钮+弹窗，输入主机名自动 AES 加密跳转；内置"现代框架修复"开关，解决 WebVPN 误伤 Next.js/React 等站点的普遍性 JS 报错
 // @author       Github/Johnsheng1
 // @match        https://client.v.just.edu.cn/*
 // @grant        none
-// @run-at       document-end
+// @run-at       document-start
 // @license      MIT
 // ==/UserScript==
 
 (function () {
   'use strict';
+
+  /* ============================================================
+   * 修复模块：解决 WebVPN 误伤现代框架的普遍性问题
+   * ------------------------------------------------------------
+   * 问题：易安联 WebVPN 的 bundle.debug.js 内含脚本过滤器 R(t,e)，
+   * 对页面内联脚本做关键词检测（location/postMessage/http-webvpn/https-webvpn），
+   * 命中就用 enlink_eval() 用 Babel 改写（location→__location）后 eval。
+   * Next.js/React 等现代框架的 SSR 数据（__next_f）天然含 "location"
+   * 字符串，被误判为混淆代码改写后导致 React hydration 崩溃，
+   * 页面渲染 "__next_error__" 错误页。
+   *
+   * 修复：document-start 阶段把 window.enlink_eval 替换为无害版本，
+   * 原样执行不再改写；若原样执行失败（真老混淆系统），降级回退原始逻辑。
+   * 可通过开关全局启停（默认开启）。
+   * ============================================================ */
+  const FIX_ENABLED_KEY = 'just_wvpn_fix_enabled';
+
+  function getFixEnabled() {
+    try {
+      const v = localStorage.getItem(FIX_ENABLED_KEY);
+      return v === null ? true : v === '1';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function installFix() {
+    if (!getFixEnabled()) return; // 开关关闭时不安装
+    let current = undefined;
+    try {
+      Object.defineProperty(window, 'enlink_eval', {
+        configurable: true,
+        enumerable: false,
+        get: function () { return current; },
+        set: function (v) {
+          if (typeof v !== 'function' || v.__just_patched) { current = v; return; }
+          const original = v;
+          const patched = function (code, mode, sourceType) {
+            try { return eval(code); }
+            catch (e) {
+              try { return original(code, mode, sourceType); }
+              catch (e2) { throw e2; }
+            }
+          };
+          patched.__just_patched = true;
+          current = patched;
+        }
+      });
+    } catch (e) { /* 某些环境不允许覆写，忽略 */ }
+    // 兜底轮询：WebVPN 若用其他方式重定义，再补一次
+    const iv = setInterval(function () {
+      const v = window.enlink_eval;
+      if (typeof v === 'function' && !v.__just_patched) {
+        try { window.enlink_eval = v; } catch (e) {}
+      }
+    }, 50);
+    setTimeout(function () { clearInterval(iv); }, 3000);
+  }
+
+  // document-start 立即安装修复（必须早于 WebVPN bundle 执行）
+  installFix();
 
   /* ============================================================
    * 加密引擎：纯 JS AES-128 实现（自包含，无外部依赖）
@@ -191,6 +252,26 @@
         background: #eef4ff; color: #1e6fff; border: 1px solid #d6e4ff; transition: background .15s;
       }
       .just-wvpn-chip:hover { background: #d9e8ff; }
+      #just-wvpn-fix {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 12px; padding: 9px 11px;
+        background: #f5f7fa; border: 1px solid #e4e7ec; border-radius: 8px;
+      }
+      #just-wvpn-fix .just-wvpn-fix-label { font-size: 12px; color: #333; }
+      #just-wvpn-fix .just-wvpn-fix-label small { display: block; color: #98a2b3; margin-top: 2px; }
+      /* 开关 */
+      #just-wvpn-fix .just-wvpn-switch {
+        position: relative; width: 40px; height: 22px; flex-shrink: 0;
+        background: #cbd2dc; border-radius: 999px; cursor: pointer;
+        transition: background .2s; border: none; padding: 0;
+      }
+      #just-wvpn-fix .just-wvpn-switch::after {
+        content: ''; position: absolute; top: 3px; left: 3px;
+        width: 16px; height: 16px; background: #fff; border-radius: 50%;
+        transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+      }
+      #just-wvpn-fix .just-wvpn-switch.on { background: #1e6fff; }
+      #just-wvpn-fix .just-wvpn-switch.on::after { transform: translateX(18px); }
     `;
     root.appendChild(style);
 
@@ -216,6 +297,12 @@
           <option value="https" selected>HTTPS</option>
           <option value="http">HTTP</option>
         </select>
+        <div id="just-wvpn-fix">
+          <div class="just-wvpn-fix-label">现代框架修复
+            <small>修复 Next.js/React 站点的 JS 报错</small>
+          </div>
+          <button id="just-wvpn-fix-switch" class="just-wvpn-switch" role="switch" aria-checked="true"></button>
+        </div>
         <button id="just-wvpn-go">前往</button>
         <div id="just-wvpn-error"></div>
         <div id="just-wvpn-common">
@@ -251,6 +338,29 @@
 
     goBtn.addEventListener('click', go);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+
+    // 现代框架修复开关
+    const fixSwitch = panel.querySelector('#just-wvpn-fix-switch');
+    function setFixSwitch(on) {
+      fixSwitch.classList.toggle('on', on);
+      fixSwitch.setAttribute('aria-checked', String(on));
+    }
+    // 初始状态从 localStorage 读取
+    setFixSwitch(getFixEnabled());
+    fixSwitch.addEventListener('click', () => {
+      const now = !fixSwitch.classList.contains('on');
+      setFixSwitch(now);
+      try { localStorage.setItem(FIX_ENABLED_KEY, now ? '1' : '0'); } catch (e) {}
+      // 提示：开关对当前页面立即生效（通过刷新重建 enlink_eval）
+      showErr('');
+      errBox.style.display = 'block';
+      errBox.style.color = '#027a48';
+      errBox.style.background = '#ecfdf3';
+      errBox.textContent = now
+        ? '修复已开启，刷新当前页面后生效'
+        : '修复已关闭，刷新当前页面后生效';
+      setTimeout(() => { errBox.style.display = 'none'; errBox.style.color = ''; errBox.style.background = ''; }, 3000);
+    });
 
     // 快捷 chips
     COMMON.forEach(item => {
