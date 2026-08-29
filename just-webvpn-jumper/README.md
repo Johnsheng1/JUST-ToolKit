@@ -38,7 +38,7 @@
 ## 安装
 
 1. 安装浏览器扩展 [Tampermonkey](https://www.tampermonkey.net/)（Chrome / Edge / Firefox 均支持）。
-2. 打开 Tampermonkey 控制面板 → 选择「添加新脚本」（或直接双击 `just-webvpn-jumper.user.js` 文件，浏览器会自动弹出 Tampermonkey 安装界面）。
+2. 打开 Tampermonkey 控制面板 → 选择「添加新脚本」（或直接[点击此处安装](https://github.com/Johnsheng1/JUST-ToolKit/raw/refs/heads/main/just-webvpn-jumper/just-webvpn-jumper.user.js)，浏览器会自动弹出 Tampermonkey 安装界面）。
 3. 粘贴脚本内容并保存（Ctrl+S）。
 4. 打开任意 `client.v.just.edu.cn` 页面，右下角出现蓝色 `⟳` 按钮即安装成功。
 
