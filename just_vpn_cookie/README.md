@@ -62,6 +62,7 @@ python just_vpn_login.py 测试
 | `CHECK_URL` | `https://client.v.just.edu.cn/https/webvpn764a2e4853ae5e537560ba711c0f46bd/` | 登录后的会话检测地址（指向门户首页） |
 | `CHECK_URL`备选方案 | `https://client.v.just.edu.cn/https/webvpn5e450e4df63d1d975727042c5bc4b19e2145ba81088ec8390b46b776c759a213/speedtest/backend/getIP.php?isp=true&distance=km&enlink-vpn` | 同济大学教育网测速站（可通过IP ASN是否属于China Education and Research Network Center判断） |
 
+
 环境变量（来自 `.env`）：
 
 | 变量 | 说明 |
@@ -79,12 +80,21 @@ python just_vpn_login.py 测试
 ```bash
 # 正确用法（-L 跟随重定向）
 curl -L -b just_vpn_cookies.txt "https://client.v.just.edu.cn/https/webvpn764a2e4853ae5e537560ba711c0f46bd/"
-
-# 访问门户首页（等价）
-curl -L -b just_vpn_cookies.txt "https://vpn2.just.edu.cn/"
 ```
 
-> 如果仍然 302，通常是因为 cookie 已过期——重新运行 `python just_vpn_login.py` 刷新即可。
+> ⚠️ **必须用 `client.v.just.edu.cn` 的完整 URL**。所有会话 Cookie（含关键的 `clientInfo`）都绑定在
+> `client.v.just.edu.cn` 域上，访问 `vpn2.just.edu.cn` 入口时**一个 cookie 都不会发送**，
+> 网关会按访客处理并踢回登录页。不要用入口域名做检测。
+>
+> ⚠️ **`-b` 只读不写**。如果你用了 `-c somejar.txt` 让 curl 写回 jar，注意：服务端从不给「访客会话」
+> 下发 `clientInfo`，一旦 jar 被访客 cookie 覆盖（丢掉 clientInfo），就永远是访客态、永远跳登录页。
+> 判断 jar 是否完好：`grep clientInfo jar.txt` 有输出才算有效。
+>
+> ⚠️ **`-b` 不认 JSON**。`curl -b just_vpn_cookies.json` 等于没带 cookie，要用 `.txt`（Netscape 格式）。
+>
+> 如果以上都正确仍跳登录页，说明 cookie 已过期——重新运行 `python just_vpn_login.py` 刷新即可。
+> 快速自检：`curl -sS -o /dev/null -w "%{http_code} %{num_redirects}" -L -b just_vpn_cookies.txt "<检测URL>"`，
+> 输出 `200 0` = 会话有效；`200 4`（最终落在 cas/login）= cookie 失效或缺失。
 
 ### 浏览器中导入 Cookie（注意事项）
 
